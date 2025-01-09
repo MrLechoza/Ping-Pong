@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import './App.css'
+import { useNavigate } from 'react-router-dom';
 
 const Game: React.FC = () => {
+  const navigate = useNavigate()
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const  [ ball, setBall ] = useState({ x: 40, y:40, r: 10, vx: 15, vy:15  })
   const [ paddle, setPaddle ] = useState({ x: 50, y: 300 , width: 10, height: 100 })
@@ -9,6 +11,7 @@ const Game: React.FC = () => {
   const [ gameOver , setGameOver ] = useState(false)
   const red = { x: 600, y: 299, width: 10, height: 1000 }
   const [paddleVelocityY, setPaddleVelocityY] = useState(0)
+  const [paddle2VelocityY, setPaddle2VelocityY] = useState(0)
 
   const box = (ctx: CanvasRenderingContext2D) => {
     ctx.clearRect(0,0, ctx.canvas.width, ctx.canvas.height);
@@ -81,8 +84,8 @@ const Game: React.FC = () => {
 
       if(newX - prevBall.r <= 0 || newX + prevBall.r >= canvasRef.current!.width
       ) {
-        setGameOver(true)
-        return prevBall
+        //setGameOver(true)
+        //return prevBall
       }
       
       if (newX + prevBall.r > canvasRef.current!.width || newX - prevBall.r < 0) {
@@ -137,40 +140,74 @@ const Game: React.FC = () => {
   }, [ball])
 
   useEffect(() => {
+    const interval = setInterval(() => {
+      setPaddle((prevPaddle) => {
+        const newVelocityY = prevPaddle.y + paddleVelocityY;
+        const isGrounded = prevPaddle.y >= canvasRef.current!.height - prevPaddle.height;
+  
+        if (isGrounded) {
+          setPaddleVelocityY(0);
+          return { ...prevPaddle, y: canvasRef.current!.height - prevPaddle.height };
+        }
+  
+        setPaddleVelocityY((prevVelocity) => prevVelocity + 1);
+        return { ...prevPaddle, y: newVelocityY };
+      });
+  
+      setPaddle2((prevPaddle2) => {
+        const newVelocityY = prevPaddle2.y + paddle2VelocityY;
+        const isGrounded = prevPaddle2.y >= canvasRef.current!.height - prevPaddle2.height;
+  
+        if (isGrounded) {
+          setPaddle2VelocityY(0);
+          return { ...prevPaddle2, y: canvasRef.current!.height - prevPaddle2.height };
+        }
+  
+        setPaddle2VelocityY((prevVelocity) => prevVelocity + 1); 
+        return { ...prevPaddle2, y: newVelocityY };
+      });
+    }, 16);
+  
+    return () => clearInterval(interval);
+  }, [paddleVelocityY, paddle2VelocityY]);
+  
+
+  useEffect(() => {
     const  handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "w" && paddleVelocityY === 0) {
-        setPaddleVelocityY(-2)
+        if (event.key === "w" && paddleVelocityY === 0) {
+        setPaddleVelocityY(-80)
+        } else if (event.key === "i" && paddle2VelocityY === 0 ) {
+        setPaddle2VelocityY(-80)
 
         } else if (event.key === "a") {
           setPaddle(prevPaddle => ({
             ...prevPaddle,
-            x: Math.max(prevPaddle.x - 30, 0)
+            x: Math.max(prevPaddle.x - 10, 0)
           }))
         } else if (event.key === "d") {
           setPaddle(prevPaddle => ({
             ...prevPaddle,
-            x: Math.min(prevPaddle.x + 30, canvasRef.current!.height - prevPaddle.height)
+            x: Math.min(prevPaddle.x + 10, canvasRef.current!.width - prevPaddle.width)
           }))
-        }
-
-        if (event.key === 'i'){
-            setPaddle2((prevPaddle => ({
-                ...prevPaddle,
-                y: Math.max(prevPaddle.y - 30, 0),
+        } else if (event.key === 'j'){
+          setPaddle2((prevPaddle2 => ({
+              ...prevPaddle2,
+              x: Math.max(prevPaddle2.x - 10, 0),
             })))
-        } else if (event.key === 'k') {
-            setPaddle2((prevPaddle) => ({
-                ...prevPaddle,
-                y: Math.min(prevPaddle.y + 30, canvasRef.current!.height - prevPaddle.height)
+        } else if (event.key === 'l') {
+            setPaddle2((prevPaddle2) => ({
+              ...prevPaddle2,
+              x: Math.min(prevPaddle2.x + 10, canvasRef.current!.width - prevPaddle2.width)
             }))
         }  
+        
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return() => {
         window.removeEventListener('keydown', handleKeyDown)
     }
-  },[])
+  },[paddleVelocityY])
 
   return (
     <div className=''>
@@ -181,6 +218,7 @@ const Game: React.FC = () => {
           <button className='border rounded-lg px-3 py-1 bg-green-500 text-white font-semibold items-center' onClick={() => window.location.reload()}>Reiniciar Juego</button>
         </div>
       )}
+      <button onClick={() => navigate('/')}>Regresar</button>
     </div>
   );
 };

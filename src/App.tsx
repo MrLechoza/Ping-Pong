@@ -1,13 +1,17 @@
-import React from "react"
-import Game from "./Game"
-
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Home from "./Home"
+import Pingpong from './Ping-Pong-game';
+import Game from  './Game'
 
 const App: React.FC = () => {
   return (
-    <div className="flex flex-col items-center">
-      <h1 className='items-center justify-center text-xl font-semibold font-mono py-10' >Ping Pong</h1>
-      <Game />
-    </div>
+    <Router>
+      <Routes>
+        <Route path='/' element={<Home />}/>
+        <Route path='/pingpong' element={<Pingpong />} />
+        <Route path='/game2' element={<Game />}  />
+      </Routes>
+    </Router>
   )
 }
 
