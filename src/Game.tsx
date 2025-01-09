@@ -12,6 +12,7 @@ const Game: React.FC = () => {
   const red = { x: 600, y: 299, width: 10, height: 1000 }
   const [paddleVelocityY, setPaddleVelocityY] = useState(0)
   const [paddle2VelocityY, setPaddle2VelocityY] = useState(0)
+  
 
   const box = (ctx: CanvasRenderingContext2D) => {
     ctx.clearRect(0,0, ctx.canvas.width, ctx.canvas.height);
@@ -37,7 +38,7 @@ const Game: React.FC = () => {
 
     setPaddle((prevPaddle) => {
       if (paddleVelocityY !== 0 || prevPaddle.y < canvasRef.current!.height - prevPaddle.height) {
-        const gravity = 1
+        const gravity = 0.7
         const  newVelocityY = paddleVelocityY + gravity
         const newY = Math.min(prevPaddle.y + newVelocityY, canvasRef.current!.height - prevPaddle.height)
 
@@ -47,6 +48,20 @@ const Game: React.FC = () => {
         return { ...prevPaddle, y: newY}
       }
       return prevPaddle
+    })
+
+    setPaddle2((prevPaddle2) => {
+      if (paddle2VelocityY !== 0 || prevPaddle2.y < canvasRef.current!.height - prevPaddle2.height) {
+        const gravity = 0.7
+        const newVelocityY = paddle2VelocityY + gravity
+        const newY = Math.min(prevPaddle2.y + newVelocityY, canvasRef.current!.height - prevPaddle2.height)
+
+        if (newY === canvasRef.current!.height - prevPaddle2.height) {
+          setPaddle2VelocityY(0)
+        }
+        return { ...prevPaddle2, y: newY }
+      }
+      return prevPaddle2
     })
 
     setBall(prevBall => {
@@ -141,73 +156,72 @@ const Game: React.FC = () => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setPaddle((prevPaddle) => {
-        const newVelocityY = prevPaddle.y + paddleVelocityY;
-        const isGrounded = prevPaddle.y >= canvasRef.current!.height - prevPaddle.height;
-  
-        if (isGrounded) {
-          setPaddleVelocityY(0);
-          return { ...prevPaddle, y: canvasRef.current!.height - prevPaddle.height };
-        }
-  
-        setPaddleVelocityY((prevVelocity) => prevVelocity + 1);
-        return { ...prevPaddle, y: newVelocityY };
-      });
-  
-      setPaddle2((prevPaddle2) => {
-        const newVelocityY = prevPaddle2.y + paddle2VelocityY;
-        const isGrounded = prevPaddle2.y >= canvasRef.current!.height - prevPaddle2.height;
-  
-        if (isGrounded) {
-          setPaddle2VelocityY(0);
-          return { ...prevPaddle2, y: canvasRef.current!.height - prevPaddle2.height };
-        }
-  
-        setPaddle2VelocityY((prevVelocity) => prevVelocity + 1); 
-        return { ...prevPaddle2, y: newVelocityY };
-      });
+        setPaddle(prevPaddle => {
+            const newVelocityY = prevPaddle.y + paddleVelocityY * 0.02;
+            const isGrounded = prevPaddle.y >= canvasRef.current!.height - prevPaddle.height;
+
+            if (isGrounded) {
+                setPaddleVelocityY(0);
+                return { ...prevPaddle, y: canvasRef.current!.height - prevPaddle.height };
+            }
+
+            setPaddleVelocityY((prevVelocity) => prevVelocity + 1);
+            return { ...prevPaddle, y: newVelocityY };
+        });
+
+        setPaddle2(prevPaddle2 => {
+            const newVelocity2Y = prevPaddle2.y + paddle2VelocityY * 0.02; 
+            const isGrounded2 = prevPaddle2.y >= canvasRef.current!.height - prevPaddle2.height;
+
+            if (isGrounded2) {
+                setPaddle2VelocityY(0);
+                return { ...prevPaddle2, y: canvasRef.current!.height - prevPaddle2.height };
+            }
+
+            setPaddle2VelocityY((prevVelocity) => prevVelocity + 1);
+            return { ...prevPaddle2, y: newVelocity2Y };
+        });
     }, 16);
-  
+
     return () => clearInterval(interval);
-  }, [paddleVelocityY, paddle2VelocityY]);
+}, [paddleVelocityY, paddle2VelocityY]);
   
 
   useEffect(() => {
-    const  handleKeyDown = (event: KeyboardEvent) => {
+    const handleKeyDown = (event: KeyboardEvent) => {
         if (event.key === "w" && paddleVelocityY === 0) {
-        setPaddleVelocityY(-80)
-        } else if (event.key === "i" && paddle2VelocityY === 0 ) {
-        setPaddle2VelocityY(-80)
-
+            setPaddleVelocityY(-80)
+        } else if (event.key === "i" && paddle2VelocityY === 0) {
+            console.log("Tecla 'i' pulsada, paddle2VelocityY:", paddle2VelocityY);
+            setPaddle2VelocityY(-80)
+            console.log("paddle2VelocityY después de set:", -80);
         } else if (event.key === "a") {
-          setPaddle(prevPaddle => ({
-            ...prevPaddle,
-            x: Math.max(prevPaddle.x - 10, 0)
-          }))
+            setPaddle(prevPaddle => ({
+                ...prevPaddle,
+                x: Math.max(prevPaddle.x - 10, 0)
+            }))
         } else if (event.key === "d") {
-          setPaddle(prevPaddle => ({
-            ...prevPaddle,
-            x: Math.min(prevPaddle.x + 10, canvasRef.current!.width - prevPaddle.width)
-          }))
-        } else if (event.key === 'j'){
-          setPaddle2((prevPaddle2 => ({
-              ...prevPaddle2,
-              x: Math.max(prevPaddle2.x - 10, 0),
+            setPaddle(prevPaddle => ({
+                ...prevPaddle,
+                x: Math.min(prevPaddle.x + 10, canvasRef.current!.width - prevPaddle.width)
+            }))
+        } else if (event.key === 'j') {
+            setPaddle2((prevPaddle2 => ({
+                ...prevPaddle2,
+                x: Math.max(prevPaddle2.x - 10, 0),
             })))
         } else if (event.key === 'l') {
             setPaddle2((prevPaddle2) => ({
-              ...prevPaddle2,
-              x: Math.min(prevPaddle2.x + 10, canvasRef.current!.width - prevPaddle2.width)
+                ...prevPaddle2,
+                x: Math.min(prevPaddle2.x + 10, canvasRef.current!.width - prevPaddle2.width)
             }))
-        }  
-        
+        }
     }
-
     window.addEventListener('keydown', handleKeyDown)
-    return() => {
+    return () => {
         window.removeEventListener('keydown', handleKeyDown)
     }
-  },[paddleVelocityY])
+}, [paddleVelocityY, paddle2VelocityY])
 
   return (
     <div className=''>
