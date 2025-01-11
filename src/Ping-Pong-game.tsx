@@ -182,20 +182,20 @@ const Pingpong: React.FC = () => {
   }, []);
 
   return (
-    <div className="mx-auto">
+    <div className="flex flex-col mx-auto items-center justify-center w-full">
       <canvas ref={canvasRef} width={1200} height={400} className="border mx-auto my-20" />
       {gameOver && (
         <div className="game-over text-center mt-10">
           <h1> Que bicho tan webon </h1>
           <button
             onClick={() => window.location.reload()}
-            className="mt-2 border py-1 px-3 rounded-lg bg-green-400 text-white"
+            className="btn btn-outline  text-md"
           >
             Reiniciar juego
           </button>
         </div>
       )}
-      <button onClick={() => navigate('/')}>Regresar</button>
+      <button className="btn btn-outline " onClick={() => navigate('/')}>Regresar</button>
     </div>
   );
 };
