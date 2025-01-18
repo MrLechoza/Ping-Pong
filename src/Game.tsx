@@ -5,23 +5,29 @@ import { useNavigate } from "react-router-dom";
 const Game: React.FC = () => {
   const navigate = useNavigate();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [ball, setBall] = useState({ x: 1000, y: 0, r: 10, vx: 15, vy: 15 });
+  const [ball, setBall] = useState({ x: 0, y: 0, r: 10, vx: 15, vy: 15 });
   const [person, setPerson] = useState({
     x: 50,
     y: 350,
-    r: 50, 
+    r: 50,
   });
   const [person2, setPerson2] = useState({
     x: 1140,
     y: 350,
-    r: 50, 
+    r: 50,
   });
   const [gameOver, setGameOver] = useState(false);
   const red = { x: 600, y: 299, width: 10, height: 1000 };
   const [personVelocityY, setPersonVelocityY] = useState(0);
   const [person2VelocityY, setPerson2VelocityY] = useState(0);
+  const [player1BounceCount, setPlayer1BounceCount] = useState(0);
+  const [player2BounceCount, setPlayer2BounceCount] = useState(0);
   const keysPressed = useRef<{ [key: string]: boolean }>({});
   const fps = 60;
+  const [player1Points, setPlayer1Points] = useState(0);
+  const [player2Points, setPlayer2Points] = useState(0);
+  const [winner, setWinner] = useState<string | null>(null);
+  
 
   const box = (ctx: CanvasRenderingContext2D) => {
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -46,6 +52,14 @@ const Game: React.FC = () => {
 
     ctx.fillStyle = "green";
     ctx.fillRect(red.x, red.y, red.width, red.height);
+  };
+
+  const resetGame = () => {
+    setBall({ x: 600, y: 0, r: 10, vx: 5, vy: 5 });
+    setPerson({ x: 50, y: 350, r: 50 });
+    setPerson2({ x: 1140, y: 350, r: 50 });
+    setPlayer1BounceCount(0);
+    setPlayer2BounceCount(0);
   };
 
   const update = () => {
@@ -86,12 +100,12 @@ const Game: React.FC = () => {
     setBall((prevBall) => {
       let newX = prevBall.x + prevBall.vx;
       let newY = prevBall.y + prevBall.vy;
-
+    
       const gravity = 0.3;
       prevBall.vy += gravity;
-
+    
       newY += prevBall.vy;
-
+    
       // choque con la person1
       const distPerson1 = Math.sqrt(
         (newX - person.x) ** 2 + (newY - person.y) ** 2
@@ -100,10 +114,11 @@ const Game: React.FC = () => {
         const angle = Math.atan2(newY - person.y, newX - person.x);
         newX = person.x + (prevBall.r + person.r) * Math.cos(angle);
         newY = person.y + (prevBall.r + person.r) * Math.sin(angle);
-        prevBall.vx = -prevBall.vx * 1.1;
-        prevBall.vy = -prevBall.vy * 1.1;
+        const speed = Math.sqrt(prevBall.vx ** 2 + prevBall.vy ** 2);
+        prevBall.vx = speed * Math.cos(angle);
+        prevBall.vy = speed * Math.sin(angle);
       }
-
+    
       // choque con person2
       const distPerson2 = Math.sqrt(
         (newX - person2.x) ** 2 + (newY - person2.y) ** 2
@@ -112,49 +127,80 @@ const Game: React.FC = () => {
         const angle = Math.atan2(newY - person2.y, newX - person2.x);
         newX = person2.x + (prevBall.r + person2.r) * Math.cos(angle);
         newY = person2.y + (prevBall.r + person2.r) * Math.sin(angle);
-        prevBall.vx = -prevBall.vx * 1.1;
-        prevBall.vy = -prevBall.vy * 1.1;
+        const speed = Math.sqrt(prevBall.vx ** 2 + prevBall.vy ** 2);
+        prevBall.vx = speed * Math.cos(angle);
+        prevBall.vy = speed * Math.sin(angle);
       }
-
-      if (
-        newY + prevBall.r >= canvasRef.current!.height
-      ) {
-        setGameOver(true)
-        return prevBall
-      }
-
-      if (
-        newX + prevBall.r > canvasRef.current!.width ||
-        newX - prevBall.r < 0
-      ) {
-        newX = prevBall.x;
-        prevBall.vx = -prevBall.vx;
-      }
-
-      if (newY + prevBall.r >= canvasRef.current!.height && prevBall.vy === 0) {
-        setGameOver(true);
-        return prevBall;
-      }
-
+    
       // choque con la red
       if (
-        newY + prevBall.r > red.y &&
-        newY - prevBall.r < red.y + red.height &&
         newX + prevBall.r > red.x &&
-        newX - prevBall.r < red.x + red.width
+        newX - prevBall.r < red.x + red.width &&
+        newY + prevBall.r > red.y &&
+        newY - prevBall.r < red.y + red.height
       ) {
-        newY = red.y - prevBall.r;
-        prevBall.vx = -prevBall.vx * 0.8;
+        if (prevBall.vx > 0) {
+          newX = red.x - prevBall.r;
+        } else {
+          newX = red.x + red.width + prevBall.r;
+        }
+        prevBall.vx = -prevBall.vx;
       }
-
-      if (newY + prevBall.r > canvasRef.current!.height) {
-        newY = canvasRef.current!.height - prevBall.r;
+    
+      // Verificar si la pelota toca la parte inferior del canvas en la zona del jugador 1
+      if (newY + prevBall.r >= canvasRef.current!.height && newX < red.x) {
+        setPlayer1BounceCount((count) => count + 1);
+        if (player1BounceCount + 1 >= 2) {
+          setPlayer2Points((points) => {
+            const newPoints = points + 1;
+            if (newPoints >= 3) {
+              setWinner("Jugador 2");
+              setGameOver(true);
+            } else {
+              resetGame();
+            }
+            return newPoints;
+          });
+        }
         prevBall.vy = -prevBall.vy * 0.8;
-      } else if (newY - prevBall.r < 0) {
+      }
+    
+      // Verificar si la pelota toca la parte inferior del canvas en la zona del jugador 2
+      if (newY + prevBall.r >= canvasRef.current!.height && newX > red.x) {
+        setPlayer2BounceCount((count) => count + 1);
+        if (player2BounceCount + 1 >= 2) {
+          setPlayer1Points((points) => {
+            const newPoints = points + 1;
+            if (newPoints >= 3) {
+              setWinner("Jugador 1");
+              setGameOver(true);
+            } else {
+              resetGame();
+            }
+            return newPoints;
+          });
+        }
+        prevBall.vy = -prevBall.vy * 0.8;
+      }
+    
+      // Verificar si la pelota toca la parte superior del canvas
+      if (newY - prevBall.r < 0) {
         newY = prevBall.r;
         prevBall.vy = -prevBall.vy * 0.8;
       }
-
+    
+      // Verificar si la pelota toca la pared izquierda del canvas
+      if (newX - prevBall.r < 0) {
+        newX = prevBall.r;
+        prevBall.vx = -prevBall.vx * 0.8;
+      }
+    
+      // Verificar si la pelota toca la pared derecha del canvas
+      if (newX + prevBall.r > canvasRef.current!.width) {
+        newX = canvasRef.current!.width - prevBall.r;
+        prevBall.vx = -prevBall.vx * 0.8;
+      }
+    
       return { ...prevBall, x: newX, y: newY };
     });
   };
@@ -224,10 +270,7 @@ const Game: React.FC = () => {
           newX = Math.max(prevPaddle.x - 10, prevPaddle.r);
         }
         if (keysPressed.current["d"]) {
-          newX = Math.min(
-            prevPaddle.x + 10,
-            red.x - prevPaddle.r
-          );
+          newX = Math.min(prevPaddle.x + 10, red.x - prevPaddle.r);
         }
 
         return { ...prevPaddle, y: newY, x: newX };
@@ -276,16 +319,21 @@ const Game: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center justify-center ">
+      <div className="flex px-3 text-center text-2xl py-3 mt-1">
+        <h2 className="border py-2  px-4 rounded-bl-lg rounded-tl-lg font-bold"> {player1Points} </h2>
+        <h2 className="border py-2  px-4  rounded-br-lg rounded-tr-lg font-bold"> {player2Points} </h2>
+      </div>
       <canvas
         ref={canvasRef}
         width={1200}
         height={400}
-        className="my-20 mx-auto border"
+        className="my-2 mx-auto border"
       />
+
       {gameOver && (
-        <div className="game-over text-center py-10">
-          <h1 className="items-center justify-center my-2">
-            Que bicho tan webon
+        <div className="game-over text-center">
+          <h1 className="items-center justify-center ">
+            {winner ? `Ganador: ${winner}` : "Que bicho tan webon"}
           </h1>
           <button
             className="btn btn-outline bg-green-500 text-white font-semibold items-center"

@@ -1,174 +1,67 @@
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
-import { useNavigate } from "react-router-dom";
+import { GameState, Role, ServerMessage } from "./types";
 
 const Pingpong: React.FC = () => {
-  const navigate = useNavigate();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [ball, setBall] = useState({ x: 600, y: 200, r: 10, vx: 4, vy: 4 });
-  const [paddle1, setPaddle1] = useState({
-    x: 50,
-    y: 150,
-    width: 10,
-    height: 100,
+  const [socket, setSocket] = useState<WebSocket | null>(null);
+  const [role, setRole] = useState<Role | null>(null);
+  const [gameState, setGameState] = useState<GameState>({
+    ball: { x: 50, y: 50 },
+    player1: 40,
+    player2: 40,
   });
-  const [paddle2, setPaddle2] = useState({
-    x: 1140,
-    y: 150,
-    width: 10,
-    height: 100,
+  const [movement, setMovement] = useState<null | "up" | "down">(null);
+  const [winner, setWinner] = useState<String | null>(null);
+  const [message, setMessage] = useState<boolean>(false);
+  const [score, setScore] = useState<{ score1: number; score2: number }>({
+    score1: 0,
+    score2: 0,
   });
-  const [gameOver, setGameOver] = useState(false);
-  const [paddle1VelocityY, setPaddle1VelocityY] = useState(0);
-  const [paddle2VelocityY, setPaddle2VelocityY] = useState(0);
-  const [speedFactor, setSpeedFactor] = useState(1);
-
-  const drawGame = (ctx: CanvasRenderingContext2D) => {
-    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-
-    // ----------------   ball  ------------
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
-    ctx.fillStyle = "blue";
-    ctx.fill();
-    ctx.closePath();
-
-    // ----------------   raquetas   ------------
-    ctx.fillStyle = "black";
-    ctx.fillRect(paddle1.x, paddle1.y, paddle1.width, paddle1.height);
-    ctx.fillStyle = "red";
-    ctx.fillRect(paddle2.x, paddle2.y, paddle2.width, paddle2.height);
-
-    // ----------------   linea centro  ------------
-    ctx.strokeStyle = "green";
-    ctx.setLineDash([10, 5]);
-    ctx.beginPath();
-    ctx.moveTo(ctx.canvas.width / 2, 0);
-    ctx.lineTo(ctx.canvas.width / 2, ctx.canvas.height);
-    ctx.stroke();
-  };
-
-  const updateGame = () => {
-    if (gameOver) return;
-
-    // ----------------   actualizacion de la bola  ------------
-    setBall((prevBall) => {
-      let newX = prevBall.x + prevBall.vx * speedFactor;
-      let newY = prevBall.y + prevBall.vy * speedFactor;
-
-      // ----------------   choque con la parte superior e inferior  ------------
-      if (
-        newY - prevBall.r < 0 ||
-        newY + prevBall.r > canvasRef.current!.height
-      ) {
-        prevBall.vy = -prevBall.vy;
-      }
-
-      // ----------------  choque con las raquetas  ------------------
-      if (
-        newX - prevBall.r < paddle1.x + paddle1.width &&
-        newY > paddle1.y &&
-        newY < paddle1.y + paddle1.height
-      ) {
-        prevBall.vx = -prevBall.vx;
-        newX = paddle1.x + paddle1.width + prevBall.r;
-      }
-
-      if (
-        newX + prevBall.r > paddle2.x &&
-        newY > paddle2.y &&
-        newY < paddle2.y + paddle2.height
-      ) {
-        prevBall.vx = -prevBall.vx;
-        newX = paddle2.x - prevBall.r;
-      }
-
-      // ----------------   punto  ------------
-      if (
-        newX - prevBall.r < 0 ||
-        newX + prevBall.r > canvasRef.current!.width
-      ) {
-        setGameOver(true);
-        return prevBall;
-      }
-
-      return { ...prevBall, x: newX, y: newY };
-    });
-
-    // ----------------   posicion de las raquetas  ------------
-    setPaddle1((prevPaddle) => ({
-      ...prevPaddle,
-      y: Math.max(
-        0,
-        Math.min(
-          prevPaddle.y + paddle1VelocityY,
-          canvasRef.current!.height - prevPaddle.height
-        )
-      ),
-    }));
-
-    setPaddle2((prevPaddle) => ({
-      ...prevPaddle,
-      y: Math.max(
-        0,
-        Math.min(
-          prevPaddle.y + paddle2VelocityY,
-          canvasRef.current!.height - prevPaddle.height
-        )
-      ),
-    }));
-  };
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
+    const ws = new WebSocket("ws://localhost:8000/ws/pingpong/");
+    ws.onopen = () => console.log("WebSocket connected");
+    ws.onmessage = (event) => {
+      const data: ServerMessage = JSON.parse(event.data);
 
-    if (ctx) {
-      const interval = setInterval(() => {
-        updateGame();
-        drawGame(ctx);
-      }, 1000 / 60);
+      if (data.type === "role" && data.role) {
+        setRole(data.role);
+      } else if (data.type === "update" && data.state) {
+        setGameState(data.state);
+      } else if (data.type === "game_over" && data.message?.winner) {
+        setWinner(data.message.winner);
+        setScore({
+          score1: data.message.score1 || 0,
+          score2: data.message.score2 || 0,
+        });
+        setMessage(true);
+      }
+    };
+    ws.onclose = () => console.log("WebSocket disconnected");
+    setSocket(ws);
 
-      return () => clearInterval(interval);
-    }
-  }, [ball, paddle1, paddle2, speedFactor]);
-
-  useEffect(() => {
-    const speedInterval = setInterval(() => {
-      setSpeedFactor((prev) => prev + 0.1);
-    }, 5000); //   5 segundos
-
-    return () => clearInterval(speedInterval);
+    return () => ws.close();
   }, []);
 
+  const sendPosition = (position: number) => {
+    if (socket && socket.readyState === WebSocket.OPEN && role) {
+      socket.send(JSON.stringify({ type: "move", role, position }));
+    }
+  };
+
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      switch (event.key) {
-        case "w":
-          setPaddle1VelocityY(-6);
-          break;
-        case "s":
-          setPaddle1VelocityY(6);
-          break;
-        case "i":
-          setPaddle2VelocityY(-6);
-          break;
-        case "k":
-          setPaddle2VelocityY(6);
-          break;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (role === "player1" || role === "player2") {
+        if (e.key === "w") setMovement("up");
+        if (e.key === "s") setMovement("down");
       }
     };
 
-    const handleKeyUp = (event: KeyboardEvent) => {
-      switch (event.key) {
-        case "w":
-        case "s":
-          setPaddle1VelocityY(0);
-          break;
-        case "i":
-        case "k":
-          setPaddle2VelocityY(0);
-          break;
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (role === "player1" || role === "player2") {
+        if (e.key === "w" && movement === "up") setMovement(null);
+        if (e.key === "s" && movement === "down") setMovement(null);
       }
     };
 
@@ -179,23 +72,90 @@ const Pingpong: React.FC = () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, []);
+  }, [role, movement]);
+
+  useEffect(() => {
+    if (!movement || !role) return;
+
+    const moveInterval = setInterval(() => {
+      const currentPosition = gameState[role];
+      let newPosition = currentPosition;
+
+      if (movement === "up") newPosition = Math.max(currentPosition - 2, 0);
+      if (movement === "down") newPosition = Math.min(currentPosition + 2, 100);
+
+      sendPosition(newPosition);
+    }, 16);
+
+    return () => clearInterval(moveInterval);
+  }, [movement, role, gameState]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const render = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Dibujar la raquetas
+      ctx.fillStyle = "red";
+      ctx.beginPath();
+      ctx.arc(
+        (canvas.width * gameState.ball.x) / 100,
+        (canvas.height * gameState.ball.y) / 100,
+        10,
+        0,
+        2 * Math.PI
+      );
+      ctx.fill();
+
+      // Dibujar las raquetas
+      ctx.fillStyle = "blue";
+      ctx.fillRect(
+        (canvas.width * 0.05),
+        (canvas.height * gameState.player1) / 100,
+        canvas.width * 0.01,
+        canvas.height * 0.2
+      );
+
+      ctx.fillStyle = "black";
+      ctx.fillRect(
+        canvas.width * 0.95,
+        (canvas.height * gameState.player2) / 100,
+        canvas.width * 0.01,
+        canvas.height * 0.2
+      );
+
+      requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      cancelAnimationFrame(render as unknown as number);
+    };
+  }, [gameState]);
 
   return (
-    <div className="flex flex-col mx-auto items-center justify-center w-full">
-      <canvas ref={canvasRef} width={1200} height={400} className="border mx-auto my-20" />
-      {gameOver && (
-        <div className="game-over text-center mt-10">
-          <h1> Que bicho tan webon </h1>
-          <button
-            onClick={() => window.location.reload()}
-            className="btn btn-outline  text-md"
-          >
-            Reiniciar juego
-          </button>
-        </div>
+    <div className="flex flex-col items-center gap-4">
+      <h1 className="font-semibold text-2xl mt-20">Ping Pong</h1>
+      {role ? (
+        <p className="font-semibold text-xl">Estás jugando como: {role}</p>
+      ) : (
+        <p className="font-semibold text-xl">Esperando jugadores...</p>
       )}
-      <button className="btn btn-outline " onClick={() => navigate('/')}>Regresar</button>
+      <canvas
+        ref={canvasRef}
+        width={1200}
+        height={500}
+        className="border border-white"
+      />
+      <p className="text-lg">
+        Puntuación: Jugador 1 - {score?.score1}, Jugador 2 - {score?.score2}
+      </p>
+      <div>{message && <p className="text-lg">Que bicho tan webon, Ganador: {winner === "player1" ? "Jugador 1" : "Jugador 2"}</p>}</div>
     </div>
   );
 };
