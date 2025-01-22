@@ -11,13 +11,10 @@ export interface GameState {
 
 export type Role = "player1" | "player2" | null;
 
-export interface ServerMessage {
-    type: "role" | "update" | "game_over";
-    role?: Role;
-    state?: GameState;
-    message?: { 
-        winner : Role;
-        score1?: number;    
-        score2?: number;
-     }
-}
+export type ServerMessage = 
+  | { type: "role"; role: "player1" | "player2" }
+  | { type: "update"; state: GameState }
+  | { type: "game_over"; message: { winner: "player1" | "player2"; score1: number; score2: number } }
+  | { type: "score_update"; message: { score1: number; score2: number } }
+  | { type: "pause_game" }
+  | { type: "resume_game" };

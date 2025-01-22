@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import { GameState, Role, ServerMessage } from "./types";
+import { useNavigate } from "react-router-dom";
 
 const Pingpong: React.FC = () => {
+  const navigate = useNavigate();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const [role, setRole] = useState<Role | null>(null);
@@ -18,10 +20,15 @@ const Pingpong: React.FC = () => {
     score1: 0,
     score2: 0,
   });
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [gamePaused, setGamePaused] = useState<boolean>(false);
 
   useEffect(() => {
     const ws = new WebSocket("ws://localhost:8000/ws/pingpong/");
-    ws.onopen = () => console.log("WebSocket connected");
+    ws.onopen = () => {
+      console.log("WebSocket connected");
+    };
+
     ws.onmessage = (event) => {
       const data: ServerMessage = JSON.parse(event.data);
 
@@ -32,10 +39,21 @@ const Pingpong: React.FC = () => {
       } else if (data.type === "game_over" && data.message?.winner) {
         setWinner(data.message.winner);
         setScore({
-          score1: data.message.score1 || 0,
-          score2: data.message.score2 || 0,
+          score1: data.message.score1 ?? 0,
+          score2: data.message.score2 ?? 0,
         });
         setMessage(true);
+        ws.close();
+      } else if (data.type === "score_update" && data.message) {
+        setScore({
+          score1: data.message.score1 ?? 0,
+          score2: data.message.score2 ?? 0,
+        });
+        setCountdown(3); // Inicia la cuenta regresiva de 3 segundos
+      } else if (data.type === "pause_game") {
+        setGamePaused(true);
+      } else if (data.type === "resume_game") {
+        setGamePaused(false);
       }
     };
     ws.onclose = () => console.log("WebSocket disconnected");
@@ -75,7 +93,7 @@ const Pingpong: React.FC = () => {
   }, [role, movement]);
 
   useEffect(() => {
-    if (!movement || !role) return;
+    if (!movement || !role || gamePaused) return;
 
     const moveInterval = setInterval(() => {
       const currentPosition = gameState[role];
@@ -88,7 +106,7 @@ const Pingpong: React.FC = () => {
     }, 16);
 
     return () => clearInterval(moveInterval);
-  }, [movement, role, gameState]);
+  }, [movement, role, gameState, gamePaused]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -114,7 +132,7 @@ const Pingpong: React.FC = () => {
       // Dibujar las raquetas
       ctx.fillStyle = "blue";
       ctx.fillRect(
-        (canvas.width * 0.05),
+        canvas.width * 0.05,
         (canvas.height * gameState.player1) / 100,
         canvas.width * 0.01,
         canvas.height * 0.2
@@ -138,24 +156,83 @@ const Pingpong: React.FC = () => {
     };
   }, [gameState]);
 
+  useEffect(() => {
+    if (countdown === null) return;
+
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    } else {
+      setCountdown(null);
+    }
+  }, [countdown]);
+
   return (
-    <div className="flex flex-col items-center gap-4">
-      <h1 className="font-semibold text-2xl mt-20">Ping Pong</h1>
-      {role ? (
-        <p className="font-semibold text-xl">Estás jugando como: {role}</p>
-      ) : (
-        <p className="font-semibold text-xl">Esperando jugadores...</p>
+    <div className="flex flex-col items-center gap-6 bg-gray-800 min-h-screen">
+      <h1 className="font-semibold text-4xl text-white mt-16">
+        Juego Ping Pong
+      </h1>
+      <div className="flex justify-center items-center text-white text-lg">
+        {role ? (
+          <p>
+            Estás jugando como: <span className="font-bold">{role}</span>
+          </p>
+        ) : (
+          <p>Esperando jugadores...</p>
+        )}
+      </div>
+      <div className="relative">
+        <canvas
+          ref={canvasRef}
+          width={1200}
+          height={500}
+          className="border-4 border-white shadow-lg"
+        />
+      </div>
+      <div className="mt-4 text-white text-xl text-center">
+        <p>Puntuación</p>
+        <p>
+          Jugador 1 | Jugador 2 
+        </p>
+        <div className="flex justify-center items-center text-center text-2xl mt-2">  
+          <p className="border py-2  px-4 rounded-bl-lg rounded-tl-lg font-bold">{score?.score1}</p>
+          <p className="border py-2  px-4  rounded-br-lg rounded-tr-lg font-bold">{score?.score2}</p>
+        </div>
+        
+      </div>
+      <button
+        className="btn btn-outline mx-auto"
+        onClick={() => navigate("/")}
+      >
+        Regresar
+      </button>
+      {countdown !== null && (
+        <div className="fixed mt-80 bg-opacity-50 flex justify-center items-center">
+        <div className="mt-4 text-center text-white p-4 rounded-md">
+          <p className="text-2xl">Iniciando round en {countdown}...</p>
+        </div>
+        </div>
       )}
-      <canvas
-        ref={canvasRef}
-        width={1200}
-        height={500}
-        className="border border-white"
-      />
-      <p className="text-lg">
-        Puntuación: Jugador 1 - {score?.score1}, Jugador 2 - {score?.score2}
-      </p>
-      <div>{message && <p className="text-lg">Que bicho tan webon, Ganador: {winner === "player1" ? "Jugador 1" : "Jugador 2"}</p>}</div>
+      
+      {message && (
+        <div className="fixed mt-80 bg-gray-900 bg-opacity-50 flex justify-center items-center">
+          <div className="border border-white rounded-lg text-white p-8  shadow-xl w-96 text-center">
+            <p className="text-2xl mb-4">¡Juego Terminado!</p>
+            <p className="text-lg mb-4">
+              Ganador:{" "}
+              <span className="font-bold">
+                {winner === "player1" ? "Jugador 1" : "Jugador 2"}
+              </span>
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="btn btn-outline mx-auto my-4"
+            >
+              Reiniciar Juego
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
