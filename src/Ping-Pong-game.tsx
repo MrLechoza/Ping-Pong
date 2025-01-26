@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import { GameState, Role, ServerMessage } from "./types";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
 const Pingpong: React.FC = () => {
+  const { roomName } = useParams<{ roomName: string }>();
   const navigate = useNavigate();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const [role, setRole] = useState<Role | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [gameState, setGameState] = useState<GameState>({
     ball: { x: 50, y: 50 },
     player1: 40,
@@ -23,17 +25,21 @@ const Pingpong: React.FC = () => {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [gamePaused, setGamePaused] = useState<boolean>(false);
 
-  useEffect(() => {
-    const ws = new WebSocket("ws://localhost:8000/ws/pingpong/");
+  const connectWebSocket = () => {
+    const roomName = "some_room_name";  // Asegúrate de que roomName no sea undefined
+    const ws = new WebSocket(`ws://localhost:8000/ws/pingpong/${roomName}/`);
     ws.onopen = () => {
       console.log("WebSocket connected");
     };
 
     ws.onmessage = (event) => {
       const data: ServerMessage = JSON.parse(event.data);
+      console.log("Received message:", data); // Log adicional
 
       if (data.type === "role" && data.role) {
         setRole(data.role);
+        setToken(data.token);
+        console.log(`Assigned role: ${data.role}`); // Log adicional
       } else if (data.type === "update" && data.state) {
         setGameState(data.state);
       } else if (data.type === "game_over" && data.message?.winner) {
@@ -54,17 +60,51 @@ const Pingpong: React.FC = () => {
         setGamePaused(true);
       } else if (data.type === "resume_game") {
         setGamePaused(false);
+      } else if (data.type === "reset_game") {
+        setRole(null);
+        setGameState({
+          ball: { x: 50, y: 50 },
+          player1: 40,
+          player2: 40,
+        });
+        setWinner(null);
+        setMessage(false);
+        setScore({ score1: 0, score2: 0 });
+        setCountdown(null);
+        setGamePaused(false);
+      } else if (data.type === "player_disconnected") {
+        alert("Un jugador se ha desconectado. El juego se reiniciará.");
+        resetGame();
+      } else if (data.type === "player_connected") {
+        console.log(data.message);
       }
     };
     ws.onclose = () => console.log("WebSocket disconnected");
     setSocket(ws);
 
+    return ws;
+  };
+
+  useEffect(() => {
+    const ws = connectWebSocket();
+
     return () => ws.close();
-  }, []);
+  }, [roomName]);
+
+  const resetGame = () => {
+    if (socket) {
+      socket.send(JSON.stringify({ type: "reset_game" }));
+      socket.close();
+    }
+    setTimeout(() => {
+      const newSocket = connectWebSocket();
+      setSocket(newSocket);
+    }, 1000); // Espera un segundo antes de reconectar
+  };
 
   const sendPosition = (position: number) => {
-    if (socket && socket.readyState === WebSocket.OPEN && role) {
-      socket.send(JSON.stringify({ type: "move", role, position }));
+    if (socket && socket.readyState === WebSocket.OPEN && role && token) {
+      socket.send(JSON.stringify({ type: "move", role, position, token }));
     }
   };
 
@@ -225,7 +265,7 @@ const Pingpong: React.FC = () => {
               </span>
             </p>
             <button
-              onClick={() => window.location.reload()}
+              onClick={resetGame}
               className="btn btn-outline mx-auto my-4"
             >
               Reiniciar Juego
